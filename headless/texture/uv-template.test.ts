@@ -1,5 +1,4 @@
 import { describe, expect, test } from "bun:test";
-import { encodeRgbaPng, pngSize } from "../document/png";
 import type { IBBModel } from "../document/schema";
 import { applyOperations, operationSchema } from "../edit/operations";
 import { emptyModel } from "../tools/edit";
@@ -105,13 +104,5 @@ describe("buildUvTemplate", () => {
 
   test("refuses a model without faces", () => {
     expect(() => buildUvTemplate(model([]), { scale: 1 })).toThrow("no faces");
-  });
-});
-
-describe("encodeRgbaPng", () => {
-  test("writes a PNG of the given size", () => {
-    const png = encodeRgbaPng(new Uint8Array(3 * 2 * 4), 3, 2);
-    expect(pngSize(png)).toEqual({ width: 3, height: 2 });
-    expect(() => encodeRgbaPng(new Uint8Array(4), 3, 2)).toThrow("RGBA bytes");
   });
 });

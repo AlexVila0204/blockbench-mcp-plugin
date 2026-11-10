@@ -283,6 +283,28 @@ describe("headless MCP server", () => {
     expect(again.isError).toBe(true);
   });
 
+  test("bbmodel_validate_textures reads the painted pixels of a workspace PNG", async () => {
+    const session = await connect(root, "painter");
+    await session.json("bbmodel_create", { file: "arm.bbmodel", format: "bedrock", resolution: { width: 32, height: 16 } });
+    await session.json("bbmodel_edit", { file: "arm.bbmodel", operations: [{ op: "add_cube", name: "arm", from: [0, 0, 0], to: [4, 6, 2], uv_offset: [0, 0] }] });
+    interface IReport { summary: { warnings: number; errors: number }; model_gates: { id: string; violations: unknown[] }[]; textures: { colors?: number; gates: { id: string; ran: boolean; violations: { message: string }[] }[] }[] }
+
+    const bare = await session.json<IReport>("bbmodel_validate_textures", { file: "arm.bbmodel" });
+    expect(bare.textures).toEqual([]);
+    expect(bare.model_gates.find((gate) => gate.id === "untextured_faces")?.violations).toHaveLength(1);
+
+    // The template itself is a texture with one flat color per face.
+    await session.call("bbmodel_uv_template", { file: "arm.bbmodel", output: "arm-uv.png" });
+    await session.json("bbmodel_add_texture", { file: "arm.bbmodel", image: "arm-uv.png", assign_to: ["arm"] });
+    const painted = await session.json<IReport>("bbmodel_validate_textures", { file: "arm.bbmodel" });
+    expect(painted.summary.errors).toBe(0);
+    expect(painted.textures[0]?.colors).toBe(6);
+    const gate = (id: string) => painted.textures[0]?.gates.find((entry) => entry.id === id);
+    expect(gate("flat_faces")?.violations[0]?.message).toBe('"arm" has faces filled with one flat color: north, south.');
+    expect(gate("stray_pixels")).toMatchObject({ ran: true, violations: [] });
+    expect(gate("unpainted_faces")?.violations).toEqual([]);
+  });
+
   test("a render never replaces an existing workspace PNG unless overwrite is set", async () => {
     const session = await connect(root, "renderer");
     await session.json("bbmodel_create", { file: "r.bbmodel" });

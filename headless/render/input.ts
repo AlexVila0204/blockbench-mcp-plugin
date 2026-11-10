@@ -46,7 +46,7 @@ async function workspacePng(store: ModelStore, target: string): Promise<{ source
 }
 
 /** The image a texture renders with, if any, and why its links could not be used. */
-async function textureImage(store: ModelStore, modelDir: string, texture: JsonRecord): Promise<{ source?: string; problems: string[] }> {
+export async function textureImage(store: ModelStore, modelDir: string, texture: JsonRecord): Promise<{ source?: string; problems: string[] }> {
   const { source } = texture;
   // An embedded image is used as it is, so models that carry their images render as before.
   if (typeof source === "string" && source.startsWith("data:")) return { source, problems: [] };
