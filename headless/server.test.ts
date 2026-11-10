@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import { pngSize } from "./document/png";
 import { ModelStore } from "./document/store";
 import { BbRenderer, buildRenderArgs, Semaphore } from "./render/bb-render";
 import { createHeadlessServer, HEADLESS_TOOLS } from "./server";
@@ -263,6 +264,23 @@ describe("headless MCP server", () => {
     } finally {
       await rm(outside, { recursive: true, force: true });
     }
+  });
+
+  test("bbmodel_uv_template returns the layout image and the face rectangles", async () => {
+    const session = await connect(root, "painter");
+    await session.json("bbmodel_create", { file: "arm.bbmodel", format: "bedrock", resolution: { width: 32, height: 16 } });
+    await session.json("bbmodel_edit", { file: "arm.bbmodel", operations: [{ op: "add_cube", name: "arm", from: [0, 0, 0], to: [4, 6, 2], uv_offset: [0, 0] }] });
+
+    const result = await session.call("bbmodel_uv_template", { file: "arm.bbmodel", scale: 4, output: "arm-uv.png" });
+    expect(result.content.map((part) => part.type)).toEqual(["text", "image"]);
+    const first = result.content[0];
+    const summary = JSON.parse(first?.type === "text" ? first.text : "{}") as { width: number; height: number; overlap_count: number; elements: { name: string; faces: Record<string, { rect: number[] }> }[] };
+    expect(summary).toMatchObject({ width: 128, height: 64, overlap_count: 0 });
+    expect(summary.elements[0]?.faces.north?.rect).toEqual([2, 2, 4, 6]);
+    expect(pngSize(new Uint8Array(await Bun.file(join(root, "arm-uv.png")).arrayBuffer()))).toEqual({ width: 128, height: 64 });
+
+    const again = await session.call("bbmodel_uv_template", { file: "arm.bbmodel", output: "arm-uv.png" });
+    expect(again.isError).toBe(true);
   });
 
   test("a render never replaces an existing workspace PNG unless overwrite is set", async () => {

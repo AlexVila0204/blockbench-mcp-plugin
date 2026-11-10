@@ -9,13 +9,11 @@
  * @module
  */
 
-import { mkdir } from "node:fs/promises";
-import { basename, join } from "node:path";
-import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { RENDER_PRESETS, RENDER_VIEWS, type IRenderRequest, type RenderView } from "../render/bb-render";
 import { writeRenderInput } from "../render/input";
-import { defineTool, fileParam, type IHeadlessContext, type IRegistrableTool } from "../tool";
+import { defineTool, fileParam, type IRegistrableTool } from "../tool";
+import { imageContent, outputPath } from "./image-output";
 
 const clipParams = {
   clip: z.string().optional().describe("Animation clip name or index; renders the pose at time."),
@@ -25,22 +23,6 @@ const clipParams = {
 /** Side effect of the first render, stated so clients can ask before it happens (see `../render/runtime`). */
 const FIRST_RENDER_NOTE =
   "The first render on a machine downloads and installs the render engine's packages with npm (three, three-blockbench and Dawn, about 130 MB) into a per-user cache folder; later renders reuse them.";
-
-async function outputPath(context: IHeadlessContext, file: string, label: string, explicit: string | undefined, overwrite = false): Promise<string> {
-  if (explicit !== undefined) {
-    const target = context.store.resolvePath(explicit, [".png"]);
-    if (!overwrite && (await Bun.file(target).exists())) throw new Error(`${target} already exists; pass overwrite: true to replace it.`);
-    return target;
-  }
-  await mkdir(context.scratchDir, { recursive: true, mode: 0o700 });
-  const stem = basename(file).replace(/\.bbmodel$/i, "");
-  return join(context.scratchDir, `${stem}-${label}-${Date.now().toString(36)}.png`);
-}
-
-async function imageContent(path: string): Promise<CallToolResult["content"][number]> {
-  const data = Buffer.from(await Bun.file(path).arrayBuffer()).toString("base64");
-  return { type: "image", data, mimeType: "image/png" };
-}
 
 const renderTool = defineTool({
   name: "bbmodel_render",
